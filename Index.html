@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReWear - Sustainable Fashion Exchange</title>
+    <style>
+        :root{--primary-color:#4CAF50;--secondary-color:#2196F3;--text-color:#333;--card-bg:#fff;--border-color:#e0e0e0;--error-color:#f44336;--success-color:#4CAF50;--info-color:#607d8b}
+        body,html{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif;background-color:#f4f7f6;color:var(--text-color)}
+        header{background-color:var(--primary-color);color:#fff;padding:1rem;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 4px rgba(0,0,0,.1)}
+        header h1{margin:0;font-size:1.5rem;cursor:pointer}
+        .user-info{display:flex;align-items:center;gap:1rem}
+        main{padding:1.5rem;display:flex;justify-content:center}
+        .container{background-color:var(--card-bg);padding:2rem;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,.08);width:100%;max-width:500px;margin:auto;box-sizing:border-box}
+        .container h2{text-align:center;color:var(--primary-color);margin-top:0;margin-bottom:1.5rem}
+        .form-group{margin-bottom:1rem}
+        label{display:block;margin-bottom:.5rem;font-weight:600}
+        input,select,textarea,button{width:100%;padding:.75rem;border:1px solid var(--border-color);border-radius:8px;font-size:1rem;box-sizing:border-box}
+        button{background-color:var(--primary-color);color:#fff;border:none;cursor:pointer;font-weight:600;transition:background-color .2s}
+        button:hover{background-color:#43a047}
+        .logout-btn{background-color:var(--error-color);padding:.5rem 1rem;font-size:.9rem}
+        .switch-form{text-align:center;margin-top:1.5rem}.switch-form a{color:var(--secondary-color);text-decoration:none;font-weight:600}
+        .message{padding:.75rem;border-radius:8px;margin-bottom:1rem;text-align:center;display:none}.message.success{background-color:#e8f5e9;color:var(--success-color)}.message.error{background-color:#ffebee;color:var(--error-color)}.message.info{background-color:#f1f8e9;color:var(--info-color)}
+        .dashboard-grid{display:grid;gap:1rem;grid-template-columns:1fr 1fr}
+        .item-grid-container {width: 100%; max-width: 1200px; margin: auto;}
+        .item-grid{display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));}
+        .item-card{background:var(--card-bg);border:1px solid var(--border-color);border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.07)}
+        .item-card img{width:100%;height:250px;object-fit:cover;display:block; background-color: #eee;}
+        .item-card-content{padding:1rem}
+        .item-card-content h3{margin:0 0 .5rem}.item-card-content p{margin:.25rem 0;color:#555;font-size:.9rem}
+    </style>
+</head>
+<body>
+    <header>
+        <h1 onclick="checkAuthAndRender('dashboard')">ReWear</h1>
+        <div class="user-info" id="header-user-info" style="display: none;">
+            <div class="user-details">
+                <span id="user-display-name"></span> (<span id="user-points">0</span> points)
+            </div>
+            <button class="logout-btn" onclick="handleLogout()">Logout</button>
+        </div>
+    </header>
+    <main id="main-content"></main>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxabb8wIGwsx1aq9RcmSetLhrbwm9yAybRFMBMKPjIOiOQ1HteRJwF9cS-jYIU_ZjNd/exec';
+        const mainContent = document.getElementById('main-content');
+        const headerUserInfo = document.getElementById('header-user-info');
+        
+        async function apiCall(body) {
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                    redirect: 'follow'
+                });
+                return await response.json();
+            } catch (error) {
+                console.error('API Error:', error);
+                return { status: 'error', message: 'Network error or script unavailable.' };
+            }
+        }
+
+        function displayMessage(message, type, container) {
+            const messageDiv = container.querySelector('.message');
+            if (messageDiv) {
+                messageDiv.className = `message ${type}`;
+                messageDiv.textContent = message;
+                messageDiv.style.display = 'block';
+            }
+        }
+
+        function updateHeader(user) {
+            if (user && user.displayName) {
+                document.getElementById('user-display-name').textContent = user.displayName;
+                document.getElementById('user-points').textContent = user.points;
+                headerUserInfo.style.display = 'flex';
+            } else {
+                headerUserInfo.style.display = 'none';
+            }
+        }
+
+        async function handleLogout() {
+            await apiCall({ action: 'logout', sessionToken: localStorage.getItem('sessionToken') });
+            localStorage.clear();
+            checkAuthAndRender('login');
+        }
+
+        function renderLoginPage() {
+            mainContent.innerHTML = `<div class="container"><h2>Login</h2><div class="message"></div><form id="login-form"><div class="form-group"><label for="email">Email</label><input type="email" id="email" required></div><div class="form-group"><label for="password">Password</label><input type="password" id="password" required></div><button type="submit">Login</button></form><div class="switch-form">Don't have an account? <a href="#" onclick="checkAuthAndRender('signup')">Sign Up</a></div></div>`;
+            document.getElementById('login-form').addEventListener('submit', async e => {
+                e.preventDefault();
+                const container = e.target.closest('.container');
+                displayMessage('Logging in...', 'info', container);
+                const res = await apiCall({ action: 'login', email: e.target.email.value, password: e.target.password.value });
+                if (res.status === 'success') {
+                    localStorage.setItem('sessionToken', res.data.sessionToken);
+                    localStorage.setItem('user', JSON.stringify(res.data.user));
+                    checkAuthAndRender('dashboard');
+                } else {
+                    displayMessage(res.message, 'error', container);
+                }
+            });
+        }
+        
+        function renderSignupPage() {
+            mainContent.innerHTML = `<div class="container"><h2>Sign Up</h2><div class="message"></div><form id="signup-form"><div class="form-group"><label for="displayName">Display Name</label><input type="text" id="displayName" required></div><div class="form-group"><label for="email">Email</label><input type="email" id="email" required></div><div class="form-group"><label for="password">Password (min 6 chars)</label><input type="password" id="password" minlength="6" required></div><button type="submit">Sign Up</button></form><div class="switch-form">Already have an account? <a href="#" onclick="checkAuthAndRender('login')">Login</a></div></div>`;
+            document.getElementById('signup-form').addEventListener('submit', async e => {
+                e.preventDefault();
+                const container = e.target.closest('.container');
+                displayMessage('Creating account...', 'info', container);
+                const res = await apiCall({ action: 'register', displayName: e.target.displayName.value, email: e.target.email.value, password: e.target.password.value });
+                if (res.status === 'success') {
+                    displayMessage('Account created! Please login.', 'success', container);
+                    setTimeout(() => checkAuthAndRender('login'), 2000);
+                } else {
+                    displayMessage(res.message, 'error', container);
+                }
+            });
+        }
+
+        function renderDashboardPage() {
+            mainContent.innerHTML = `<div class="container"><h2 style="margin-bottom:2rem;">Dashboard</h2><div class="dashboard-grid"><button onclick="checkAuthAndRender('addItem')">List an Item</button><button onclick="checkAuthAndRender('myItems')">My Listed Items</button><button onclick="checkAuthAndRender('browse')">Browse Items</button><button onclick="alert('Coming soon!')">Swap Requests</button></div></div>`;
+        }
+
+        function renderAddItemPage() {
+            mainContent.innerHTML = `<div class="container"><h2>List a New Item</h2><div class="message"></div><form id="add-item-form"><div class="form-group"><label for="title">Title</label><input type="text" id="title" required placeholder="e.g., Blue Denim Jacket"></div><div class="form-group"><label for="description">Description</label><textarea id="description" required></textarea></div><div class="form-group"><label for="category">Category</label><select id="category" required><option value="Tops">Tops</option><option value="Bottoms">Bottoms</option><option value="Dresses">Dresses</option><option value="Outerwear">Outerwear</option><option value="Shoes">Shoes</option><option value="Accessories">Accessories</option></select></div><div class="form-group"><label for="size">Size</label><input type="text" id="size" placeholder="e.g., M, L, 10" required></div><div class="form-group"><label for="condition">Condition</label><input type="text" id="condition" placeholder="e.g., Like New" required></div><div class="form-group"><label for="points">Points Value</label><input type="number" id="points" min="1" required></div><div class="form-group"><label for="image">Image</label><input type="file" id="image" accept="image/png, image/jpeg" required></div><button type="submit">List Item</button></form></div>`;
+            document.getElementById('add-item-form').addEventListener('submit', async e => {
+                e.preventDefault();
+                const container = e.target.closest('.container');
+                const submitButton = e.target.querySelector('button');
+                submitButton.disabled = true;
+                displayMessage('Uploading item...', 'info', container);
+                const file = e.target.image.files[0];
+                if (!file) {
+                    displayMessage('Please select an image file.', 'error', container);
+                    submitButton.disabled = false;
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                    const res = await apiCall({
+                        action: 'addItem',
+                        sessionToken: localStorage.getItem('sessionToken'),
+                        title: e.target.title.value,
+                        description: e.target.description.value,
+                        category: e.target.category.value,
+                        size: e.target.size.value,
+                        condition: e.target.condition.value,
+                        points: e.target.points.value,
+                        image: reader.result,
+                        imageName: file.name
+                    });
+                    if (res.status === 'success') {
+                        displayMessage('Item listed successfully!', 'success', container);
+                        e.target.reset();
+                    } else {
+                        displayMessage(res.message, 'error', container);
+                    }
+                    submitButton.disabled = false;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function renderMyItemsPage() {
+            mainContent.innerHTML = `<div class="item-grid-container"><h2 style="text-align:center; margin-bottom: 1.5rem;">My Listed Items</h2><div class="message"></div><div class="item-grid" id="items-container"></div></div>`;
+            const container = document.getElementById('items-container');
+            const messageContainer = container.parentElement;
+            displayMessage('Loading your items...', 'info', messageContainer);
+            const res = await apiCall({ action: 'getMyItems', sessionToken: localStorage.getItem('sessionToken') });
+            if (res.status === 'success') {
+                messageContainer.querySelector('.message').style.display = 'none';
+                if(res.data.items.length === 0) {
+                   container.innerHTML = `<p style="text-align:center;">You haven't listed any items yet.</p>`;
+                   return;
+                }
+                container.innerHTML = res.data.items.map(item => `<div class="item-card"><img src="${item.imageUrl}" alt="${item.title}"><div class="item-card-content"><h3>${item.title}</h3><p>${item.description}</p><p><strong>${item.points} points</strong> | Status: ${item.status}</p></div></div>`).join('');
+            } else {
+                 displayMessage(res.message, 'error', messageContainer);
+            }
+        }
+        
+        async function renderBrowsePage() {
+            mainContent.innerHTML = `<div class="item-grid-container"><h2 style="text-align:center; margin-bottom: 1.5rem;">Browse Items</h2><div class="message"></div><div class="item-grid" id="items-container"></div></div>`;
+            const container = document.getElementById('items-container');
+            const messageContainer = container.parentElement;
+            displayMessage('Loading items...', 'info', messageContainer);
+            const res = await apiCall({ action: 'getBrowseItems', sessionToken: localStorage.getItem('sessionToken') });
+            if (res.status === 'success') {
+                messageContainer.querySelector('.message').style.display = 'none';
+                 if(res.data.items.length === 0) {
+                   container.innerHTML = `<p style="text-align:center;">No items available for swapping right now.</p>`;
+                   return;
+                }
+                container.innerHTML = res.data.items.map(item => `<div class="item-card"><img src="${item.imageUrl}" alt="${item.title}"><div class="item-card-content"><h3>${item.title}</h3><p>${item.description}</p><p><strong>${item.points} points</strong></p><button>Request Swap</button></div></div>`).join('');
+            } else {
+                 displayMessage(res.message, 'error', messageContainer);
+            }
+        }
+
+        function checkAuthAndRender(page) {
+            const token = localStorage.getItem('sessionToken');
+            const userString = localStorage.getItem('user');
+            let user = null;
+            try { user = JSON.parse(userString); } catch (e) {}
+            
+            updateHeader(user);
+
+            if (!token) {
+                page === 'signup' ? renderSignupPage() : renderLoginPage();
+                return;
+            }
+
+            switch(page) {
+                case 'dashboard': renderDashboardPage(); break;
+                case 'addItem': renderAddItemPage(); break;
+                case 'myItems': renderMyItemsPage(); break;
+                case 'browse': renderBrowsePage(); break;
+                case 'signup': renderSignupPage(); break;
+                default: renderLoginPage();
+            }
+        }
+
+        window.addEventListener('load', () => checkAuthAndRender(localStorage.getItem('sessionToken') ? 'dashboard' : 'login'));
+    </script>
+</body>
+</html>
